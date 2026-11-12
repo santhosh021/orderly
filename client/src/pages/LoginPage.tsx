@@ -31,37 +31,76 @@ export default function LoginPage() {
     }
   };
 
+  const switchMode = (next: 'login' | 'register') => {
+    setMode(next);
+    setError('');
+  };
+
   return (
-    <div className="card narrow">
-      <h1>Orderly</h1>
-      <p className="muted">{mode === 'login' ? 'Sign in to continue' : 'Create your account'}</p>
-      <form onSubmit={submit} className="form">
-        {mode === 'register' && (
-          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-        )}
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password (min 6 characters)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-        />
-        {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={busy}>
-          {busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Register'}
-        </button>
-      </form>
-      <button className="link" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
-        {mode === 'login' ? 'New here? Create an account' : 'Already registered? Login'}
-      </button>
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <span className="logo lg">O</span>
+          <h1>Orderly</h1>
+          <p className="muted">Order management made simple</p>
+        </div>
+
+        <div className="tabs">
+          <button
+            type="button"
+            className={mode === 'login' ? 'tab active' : 'tab'}
+            onClick={() => switchMode('login')}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            className={mode === 'register' ? 'tab active' : 'tab'}
+            onClick={() => switchMode('register')}
+          >
+            Register
+          </button>
+        </div>
+
+        <form onSubmit={submit} className="form">
+          {mode === 'register' && (
+            <label className="field">
+              <span>Name</span>
+              <input
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </label>
+          )}
+          <label className="field">
+            <span>Email</span>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+          <label className="field">
+            <span>Password</span>
+            <input
+              type="password"
+              placeholder="At least 6 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </label>
+          {error && <div className="alert error">{error}</div>}
+          <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+            {busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create account'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useCart } from '../cart';
+import { money } from '../format';
 
 export default function CartPage() {
-  const { lines, setQuantity, remove, clear, total } = useCart();
+  const { lines, setQuantity, remove, clear, total, count } = useCart();
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -26,57 +27,86 @@ export default function CartPage() {
   if (lines.length === 0) {
     return (
       <div>
-        <h2>Your cart</h2>
-        <p className="muted">
-          Your cart is empty. <Link to="/">Browse products</Link>
-        </p>
+        <div className="page-header">
+          <h1>Your cart</h1>
+        </div>
+        <div className="empty">
+          <h3>Your cart is empty</h3>
+          <p className="muted">Add a few products and they will show up here.</p>
+          <Link to="/" className="btn btn-primary">
+            Browse products
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <h2>Your cart</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Price</th>
-            <th>Quantity</th>
-            <th>Subtotal</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
+      <div className="page-header">
+        <div>
+          <h1>Your cart</h1>
+          <p className="muted">
+            {count} item{count === 1 ? '' : 's'}
+          </p>
+        </div>
+      </div>
+
+      <div className="cart-layout">
+        <div className="card list-card">
           {lines.map((l) => (
-            <tr key={l.product.id}>
-              <td>{l.product.name}</td>
-              <td>Rs. {l.product.price.toLocaleString('en-IN')}</td>
-              <td>
-                <input
-                  type="number"
-                  min={1}
-                  max={l.product.stock}
-                  value={l.quantity}
-                  onChange={(e) => setQuantity(l.product.id, Number(e.target.value))}
-                  className="qty"
-                />
-              </td>
-              <td>Rs. {(l.product.price * l.quantity).toLocaleString('en-IN')}</td>
-              <td>
-                <button className="danger" onClick={() => remove(l.product.id)}>
-                  Remove
+            <div className="cart-line" key={l.product.id}>
+              <div className="cart-info">
+                <strong>{l.product.name}</strong>
+                <span className="muted">{money(l.product.price)} each</span>
+              </div>
+              <div className="stepper">
+                <button
+                  type="button"
+                  onClick={() => setQuantity(l.product.id, l.quantity - 1)}
+                  disabled={l.quantity <= 1}
+                  aria-label="Decrease quantity"
+                >
+                  -
                 </button>
-              </td>
-            </tr>
+                <span>{l.quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity(l.product.id, l.quantity + 1)}
+                  disabled={l.quantity >= l.product.stock}
+                  aria-label="Increase quantity"
+                >
+                  +
+                </button>
+              </div>
+              <div className="line-total">{money(l.product.price * l.quantity)}</div>
+              <button className="btn btn-danger btn-sm" onClick={() => remove(l.product.id)}>
+                Remove
+              </button>
+            </div>
           ))}
-        </tbody>
-      </table>
-      <p className="total">Total: Rs. {total.toLocaleString('en-IN')}</p>
-      {error && <p className="error">{error}</p>}
-      <button onClick={() => void placeOrder()} disabled={busy}>
-        {busy ? 'Placing order...' : 'Place order'}
-      </button>
+        </div>
+
+        <aside className="card summary">
+          <h3>Order summary</h3>
+          <div className="summary-row">
+            <span className="muted">Items</span>
+            <span>{count}</span>
+          </div>
+          <div className="summary-row total-row">
+            <span>Total</span>
+            <span>{money(total)}</span>
+          </div>
+          {error && <div className="alert error">{error}</div>}
+          <button
+            className="btn btn-primary btn-block"
+            onClick={() => void placeOrder()}
+            disabled={busy}
+          >
+            {busy ? 'Placing order...' : 'Place order'}
+          </button>
+        </aside>
+      </div>
     </div>
   );
 }

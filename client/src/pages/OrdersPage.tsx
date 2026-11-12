@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
+import { money } from '../format';
 import type { Order, OrderStatus } from '../types';
 
 // Same rules as the backend state machine; used only to decide which buttons to show.
@@ -12,11 +13,18 @@ const NEXT: Record<OrderStatus, OrderStatus[]> = {
   CANCELLED: [],
 };
 
+const FILTERS: (OrderStatus | 'ALL')[] = ['ALL', 'PLACED', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+
+function label(status: string): string {
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
 export default function OrdersPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState('');
+  const [filter, setFilter] = useState<OrderStatus | 'ALL'>('ALL');
 
   const load = useCallback(async () => {
     try {
@@ -41,41 +49,78 @@ export default function OrdersPage() {
     }
   };
 
+  const visible = filter === 'ALL' ? orders : orders.filter((o) => o.status === filter);
+
   return (
     <div>
-      <h2>{isAdmin ? 'All orders' : 'My orders'}</h2>
-      {error && <p className="error">{error}</p>}
-      {orders.length === 0 && !error && <p className="muted">No orders yet.</p>}
+      <div className="page-header">
+        <div>
+          <h1>{isAdmin ? 'All orders' : 'My orders'}</h1>
+          <p className="muted">
+            {orders.length} order{orders.length === 1 ? '' : 's'}
+          </p>
+        </div>
+      </div>
 
-      {orders.map((o) => (
-        <div className="card" key={o.id}>
-          <div className="row">
-            <strong>Order #{o.id}</strong>
-            <span className={`badge ${o.status}`}>{o.status}</span>
-            <span className="spacer" />
+      <div className="chips">
+        {FILTERS.map((f) => (
+          <button
+            key={f}
+            type="button"
+            className={filter === f ? 'chip active' : 'chip'}
+            onClick={() => setFilter(f)}
+          >
+            {f === 'ALL' ? 'All' : label(f)}
+          </button>
+        ))}
+      </div>
+
+      {error && <div className="alert error">{error}</div>}
+
+      {visible.length === 0 && !error && (
+        <div className="empty">
+          <h3>No orders here</h3>
+          <p className="muted">Orders will appear in this list.</p>
+        </div>
+      )}
+
+      {visible.map((o) => (
+        <div className="card order-card" key={o.id}>
+          <div className="order-head">
+            <div className="row">
+              <strong>Order #{o.id}</strong>
+              <span className={`status ${o.status}`}>{label(o.status)}</span>
+            </div>
             <span className="muted">{new Date(o.createdAt).toLocaleString()}</span>
           </div>
-          {isAdmin && <p className="muted">Customer: {o.userEmail ?? `user ${o.userId}`}</p>}
-          <ul>
+          {isAdmin && <p className="muted customer">Customer: {o.userEmail ?? `user ${o.userId}`}</p>}
+
+          <div className="order-items">
             {o.items.map((i) => (
-              <li key={i.productId}>
-                {i.productName} x {i.quantity} = Rs. {i.subtotal.toLocaleString('en-IN')}
-              </li>
+              <div className="order-item" key={i.productId}>
+                <span>
+                  {i.productName} <span className="muted">x {i.quantity}</span>
+                </span>
+                <span>{money(i.subtotal)}</span>
+              </div>
             ))}
-          </ul>
-          <p className="total">Total: Rs. {o.totalAmount.toLocaleString('en-IN')}</p>
-          <div className="row">
-            {NEXT[o.status]
-              .filter((s) => isAdmin || s === 'CANCELLED')
-              .map((s) => (
-                <button
-                  key={s}
-                  className={s === 'CANCELLED' ? 'danger' : ''}
-                  onClick={() => void change(o, s)}
-                >
-                  {s === 'CANCELLED' ? 'Cancel order' : `Mark ${s.toLowerCase()}`}
-                </button>
-              ))}
+          </div>
+
+          <div className="order-foot">
+            <div className="row">
+              {NEXT[o.status]
+                .filter((s) => isAdmin || s === 'CANCELLED')
+                .map((s) => (
+                  <button
+                    key={s}
+                    className={s === 'CANCELLED' ? 'btn btn-danger btn-sm' : 'btn btn-primary btn-sm'}
+                    onClick={() => void change(o, s)}
+                  >
+                    {s === 'CANCELLED' ? 'Cancel order' : `Mark ${s.toLowerCase()}`}
+                  </button>
+                ))}
+            </div>
+            <div className="order-total">{money(o.totalAmount)}</div>
           </div>
         </div>
       ))}
