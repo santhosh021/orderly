@@ -1,0 +1,168 @@
+# Orderly - full stack. Only the web client is exposed; every other container is private.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: orderly-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+    volumes:
+      - orderly-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [orderly-net]
+
+  eureka-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: eureka-server
+    container_name: orderly-eureka
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx192m"
+    # Uncomment to open the Eureka dashboard on your LAN:
+    # ports:
+    #   - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8761/actuator/health | grep -q UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [orderly-net]
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: auth-service
+    container_name: orderly-auth
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m"
+      DB_URL: "jdbc:mysql://mysql:3306/auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      EUREKA_URL: http://eureka-server:8761/eureka
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (32+ chars)}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@orderly.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@123}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/actuator/health | grep -q UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [orderly-net]
+
+  product-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: product-service
+    container_name: orderly-product
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m"
+      DB_URL: "jdbc:mysql://mysql:3306/product_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      EUREKA_URL: http://eureka-server:8761/eureka
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health | grep -q UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [orderly-net]
+
+  order-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: order-service
+    container_name: orderly-order
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m"
+      DB_URL: "jdbc:mysql://mysql:3306/order_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      EUREKA_URL: http://eureka-server:8761/eureka
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8083/actuator/health | grep -q UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [orderly-net]
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: api-gateway
+    container_name: orderly-gateway
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m"
+      EUREKA_URL: http://eureka-server:8761/eureka
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (32+ chars)}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [orderly-net]
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: orderly-client
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "${CLIENT_PORT:-8088}:80"
+    networks:
+      - orderly-net
+      - edge   # shared network with the Cloudflare tunnel (same as your other apps)
+
+volumes:
+  orderly-mysql-data:
+
+networks:
+  orderly-net:
+  edge:
+    external: true
