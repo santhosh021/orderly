@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../auth';
+import AdminTabs from '../components/AdminTabs';
 import { money } from '../format';
+import { useToast } from '../toast';
 import type { Order, OrderStatus } from '../types';
 
 // Same rules as the backend state machine; used only to decide which buttons to show.
@@ -19,21 +21,25 @@ function label(status: string): string {
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
-export default function OrdersPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+/** scope "mine": the logged-in user's orders. scope "all": every order (admin area). */
+export default function OrdersPage({ scope }: { scope: 'mine' | 'all' }) {
+  const isAdminView = scope === 'all';
+  const { notify } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<OrderStatus | 'ALL'>('ALL');
 
   const load = useCallback(async () => {
     try {
-      setOrders(isAdmin ? await api.allOrders() : await api.myOrders());
+      setOrders(isAdminView ? await api.allOrders() : await api.myOrders());
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load orders');
+    } finally {
+      setLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdminView]);
 
   useEffect(() => {
     void load();
@@ -43,9 +49,10 @@ export default function OrdersPage() {
     try {
       if (status === 'CANCELLED') await api.cancelOrder(order.id);
       else await api.updateStatus(order.id, status);
+      notify(`Order #${order.id} is now ${label(status)}`);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not update the order');
+      notify(err instanceof Error ? err.message : 'Could not update the order', 'error');
     }
   };
 
@@ -53,9 +60,10 @@ export default function OrdersPage() {
 
   return (
     <div>
+      {isAdminView && <AdminTabs />}
       <div className="page-header">
         <div>
-          <h1>{isAdmin ? 'All orders' : 'My orders'}</h1>
+          <h1>{isAdminView ? 'All orders' : 'My orders'}</h1>
           <p className="muted">
             {orders.length} order{orders.length === 1 ? '' : 's'}
           </p>
@@ -64,12 +72,7 @@ export default function OrdersPage() {
 
       <div className="chips">
         {FILTERS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            className={filter === f ? 'chip active' : 'chip'}
-            onClick={() => setFilter(f)}
-          >
+          <button key={f} type="button" className={filter === f ? 'chip active' : 'chip'} onClick={() => setFilter(f)}>
             {f === 'ALL' ? 'All' : label(f)}
           </button>
         ))}
@@ -77,10 +80,15 @@ export default function OrdersPage() {
 
       {error && <div className="alert error">{error}</div>}
 
-      {visible.length === 0 && !error && (
+      {!loading && visible.length === 0 && !error && (
         <div className="empty">
           <h3>No orders here</h3>
-          <p className="muted">Orders will appear in this list.</p>
+          <p className="muted">{isAdminView ? 'Orders will appear in this list.' : 'Place an order and it will show up here.'}</p>
+          {!isAdminView && (
+            <Link to="/shop" className="btn btn-primary">
+              Start shopping
+            </Link>
+          )}
         </div>
       )}
 
@@ -93,7 +101,7 @@ export default function OrdersPage() {
             </div>
             <span className="muted">{new Date(o.createdAt).toLocaleString()}</span>
           </div>
-          {isAdmin && <p className="muted customer">Customer: {o.userEmail ?? `user ${o.userId}`}</p>}
+          {isAdminView && <p className="muted customer">Customer: {o.userEmail ?? `user ${o.userId}`}</p>}
 
           <div className="order-items">
             {o.items.map((i) => (
@@ -109,7 +117,7 @@ export default function OrdersPage() {
           <div className="order-foot">
             <div className="row">
               {NEXT[o.status]
-                .filter((s) => isAdmin || s === 'CANCELLED')
+                .filter((s) => isAdminView || s === 'CANCELLED')
                 .map((s) => (
                   <button
                     key={s}

@@ -112,11 +112,18 @@ public class ProductService {
     private static void apply(Product product, ProductRequest request) {
         product.setName(request.name().trim());
         product.setDescription(request.description());
+        product.setCategory(blankToNull(request.category()));
+        product.setImageUrl(blankToNull(request.imageUrl()));
         product.setPrice(request.price());
         product.setStock(request.stock());
     }
 
     private static ProductResponse toResponse(Product p) {
-        return new ProductResponse(p.getId(), p.getName(), p.getDescription(), p.getPrice(), p.getStock());
+        return new ProductResponse(p.getId(), p.getName(), p.getDescription(), p.getCategory(),
+                p.getImageUrl(), p.getPrice(), p.getStock());
+    }
+
+    private static String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 }

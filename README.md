@@ -1,12 +1,15 @@
 # Orderly: Order Management System
 
-Orderly is an order management application built with **Java and Spring Boot microservices** and a **React + TypeScript** web client. Users register, browse products, place orders and track them. Admins manage products and move orders through their lifecycle.
+Orderly is an online ordering application built with **Java and Spring Boot microservices** and a **React + TypeScript** storefront. Anyone can browse the catalog; registered users place and track orders, and admins manage products and move orders through their lifecycle.
 
 ## Features
 
+- Public storefront: home page, shop with categories, search, sorting and filters, and product detail pages
 - Register and login with JWT authentication, passwords hashed with BCrypt
+- Light and dark themes with a switcher in the sticky navbar
+- Cart that is kept between visits; sign in only when placing the order
 - Role-based access (`USER`, `ADMIN`) plus ownership checks (users only see their own orders)
-- Product catalog with search; admins can create, edit and delete products
+- Admin area: add, edit and delete products in a dialog, with image upload (or an image link), categories and stock overview
 - Cart and order placement with **all-or-nothing stock reservation**
 - Order lifecycle: `PLACED -> CONFIRMED -> SHIPPED -> DELIVERED`, or `CANCELLED` (stock is returned)
 - Resilient service-to-service calls with a circuit breaker and clear fallback errors
@@ -30,7 +33,7 @@ All services register with Eureka :8761
 | `eureka-server` | 8761 | Service registry and discovery |
 | `api-gateway` | 8080 | Single entry point, routes `/api/**`, verifies the JWT, forwards the user identity to services |
 | `auth-service` | 8081 | Registration, login, JWT creation (`auth_db`) |
-| `product-service` | 8082 | Product CRUD and stock reservation using database row locks (`product_db`) |
+| `product-service` | 8082 | Product CRUD, image upload, and stock reservation using database row locks (`product_db`) |
 | `order-service` | 8083 | Orders and order lifecycle, calls product-service through Feign (`order_db`) |
 | `client` | 80 | React app served by nginx, which also proxies `/api` to the gateway |
 | `mysql` | 3306 | One MySQL server with three databases (one per service) |
@@ -55,14 +58,16 @@ All services register with Eureka :8761
 
 ## API summary
 
-All endpoints are called through the gateway. Everything except register and login needs `Authorization: Bearer <token>`.
+All endpoints are called through the gateway. Reading the catalog (`GET /api/products/**`, including product images) and register/login are public; everything else needs `Authorization: Bearer <token>`.
 
 | Method | Path | Access |
 |---|---|---|
 | POST | `/api/auth/register` | public |
 | POST | `/api/auth/login` | public |
-| GET | `/api/products?q=` | logged in |
-| GET | `/api/products/{id}` | logged in |
+| GET | `/api/products` | public |
+| GET | `/api/products/{id}` | public |
+| GET | `/api/products/images/{file}` | public |
+| POST | `/api/products/images` (multipart `file`, max 5 MB) | admin |
 | POST / PUT / DELETE | `/api/products`, `/api/products/{id}` | admin |
 | POST | `/api/orders` | logged in |
 | GET | `/api/orders` | own orders |
@@ -114,7 +119,7 @@ Wait about 2 minutes (services must register with Eureka), then open `http://loc
 3. Add the environment variables from the table above.
 4. Deploy the stack. The first build takes several minutes.
 
-Only the `client` container is exposed. The compose file attaches it to an external Docker network named `edge`, so a reverse proxy or tunnel (for example Cloudflare Tunnel) can reach it as `http://orderly-client:80`. If you do not use such a network, remove the `edge` entries from `docker-compose.yml`.
+Uploaded product images are stored in the `orderly-uploads` Docker volume (mounted at `/data/uploads` in `product-service`), so they survive redeploys. Only the `client` container is exposed. The compose file attaches it to an external Docker network named `edge`, so a reverse proxy or tunnel (for example Cloudflare Tunnel) can reach it as `http://orderly-client:80`. If you do not use such a network, remove the `edge` entries from `docker-compose.yml`.
 
 ## Run locally without Docker
 
@@ -151,8 +156,8 @@ curl -s -X POST $BASE/api/auth/login -H 'Content-Type: application/json' \
 
 TOKEN=<paste token>
 
-# list products
-curl -s $BASE/api/products -H "Authorization: Bearer $TOKEN"
+# list products (public, no token needed)
+curl -s $BASE/api/products
 
 # place an order
 curl -s -X POST $BASE/api/orders -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \

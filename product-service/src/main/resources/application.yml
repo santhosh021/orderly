@@ -12,6 +12,13 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+app:
+  upload-dir: ${UPLOAD_DIR:./uploads}
 
 eureka:
   client:

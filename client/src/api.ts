@@ -11,21 +11,27 @@ export class ApiError extends Error {
   }
 }
 
+function parse(text: string): { message?: string } | null {
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+}
+
+function authHeader(): Record<string, string> {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('token');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...authHeader() };
 
   const res = await fetch(BASE + path, { ...options, headers });
   if (res.status === 204) return undefined as T;
 
-  const text = await res.text();
-  let data: { message?: string } | null = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = null;
-  }
+  const data = parse(await res.text());
 
   if (!res.ok) {
     // token expired or invalid: clear the session and go to the login page
@@ -46,7 +52,9 @@ export const api = {
   register: (name: string, email: string, password: string) =>
     request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
 
-  products: (q?: string) => request<Product[]>(`/products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  products: () => request<Product[]>('/products'),
+
+  product: (id: number) => request<Product>(`/products/${id}`),
 
   createProduct: (input: ProductInput) =>
     request<Product>('/products', { method: 'POST', body: JSON.stringify(input) }),
@@ -55,6 +63,19 @@ export const api = {
     request<Product>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
 
   deleteProduct: (id: number) => request<void>(`/products/${id}`, { method: 'DELETE' }),
+
+  /** Uploads an image file and returns its URL (admin only). */
+  uploadImage: async (file: File): Promise<{ url: string }> => {
+    const body = new FormData();
+    body.append('file', file);
+    // no Content-Type header: the browser sets the multipart boundary itself
+    const res = await fetch(`${BASE}/products/images`, { method: 'POST', headers: authHeader(), body });
+    const data = parse(await res.text());
+    if (!res.ok) {
+      throw new ApiError(res.status, data?.message ?? 'Image upload failed (the file may be too large)');
+    }
+    return data as unknown as { url: string };
+  },
 
   placeOrder: (items: { productId: number; quantity: number }[]) =>
     request<Order>('/orders', { method: 'POST', body: JSON.stringify({ items }) }),

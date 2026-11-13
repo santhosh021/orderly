@@ -86,6 +86,9 @@ services:
       DB_USERNAME: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       EUREKA_URL: http://eureka-server:8761/eureka
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - orderly-uploads:/data/uploads
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health | grep -q UP || exit 1"]
       interval: 10s
@@ -161,6 +164,7 @@ services:
 
 volumes:
   orderly-mysql-data:
+  orderly-uploads:
 
 networks:
   orderly-net:

@@ -31,6 +31,13 @@ public class Product {
     @Column(length = 1000)
     private String description;
 
+    @Column(length = 60)
+    private String category;
+
+    /** Absolute http(s) URL or an uploaded image path such as /api/products/images/<id>.jpg */
+    @Column(length = 500)
+    private String imageUrl;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 

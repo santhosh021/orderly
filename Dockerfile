@@ -13,7 +13,8 @@ RUN --mount=type=cache,target=/root/.m2 \
 FROM eclipse-temurin:17-jre-alpine
 ARG MODULE
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -S app && adduser -S app -G app \
+    && mkdir -p /data/uploads && chown -R app:app /data
 COPY --from=build /workspace/${MODULE}/target/${MODULE}.jar app.jar
 USER app
 ENTRYPOINT ["java", "-jar", "app.jar"]

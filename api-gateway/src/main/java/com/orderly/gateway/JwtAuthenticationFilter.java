@@ -26,7 +26,7 @@ import java.util.List;
 /**
  * Runs on every request that passes through the gateway:
  *  1. removes any X-User-* headers sent by the caller (so nobody can fake them),
- *  2. lets login/register through,
+ *  2. lets login/register and catalog reads (GET /api/products/**) through,
  *  3. for everything else verifies the JWT and forwards the user's id/email/role
  *     to the downstream service as X-User-* headers.
  */
@@ -52,7 +52,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             headers.remove("X-User-Role");
         });
 
-        if (PUBLIC_PATHS.contains(path) || HttpMethod.OPTIONS.equals(request.getMethod())) {
+        // Anyone may browse the catalog (GET /api/products/**, including product images).
+        boolean publicRead = HttpMethod.GET.equals(request.getMethod()) && path.startsWith("/api/products");
+
+        if (PUBLIC_PATHS.contains(path) || publicRead || HttpMethod.OPTIONS.equals(request.getMethod())) {
             return chain.filter(exchange.mutate().request(builder.build()).build());
         }
 

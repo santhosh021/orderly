@@ -1,89 +1,57 @@
-import type { ReactNode } from 'react';
-import { Link, NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { useEffect, type ReactNode } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth';
-import { useCart } from './cart';
-import { ThemeToggle } from './theme';
-import LoginPage from './pages/LoginPage';
-import ProductsPage from './pages/ProductsPage';
+import Footer from './components/Footer';
+import NavBar from './components/NavBar';
 import CartPage from './pages/CartPage';
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
 import OrdersPage from './pages/OrdersPage';
+import ProductDetailPage from './pages/ProductDetailPage';
+import ShopPage from './pages/ShopPage';
+import AdminProductsPage from './pages/admin/AdminProductsPage';
 
-/** Guard: only logged-in users can open the wrapped page. */
+/** Guard: only logged-in users can open the wrapped page (others are sent to login and back). */
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
+  const location = useLocation();
+  return user ? <>{children}</> : <Navigate to="/login" replace state={{ from: location.pathname }} />;
 }
 
-function NavBar() {
-  const { user, logout } = useAuth();
-  const { count } = useCart();
-  const navigate = useNavigate();
+/** Guard: admins only. */
+function RequireAdmin({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  return user?.role === 'ADMIN' ? <>{children}</> : <Navigate to="/" replace />;
+}
 
-  if (!user) return null;
-
-  return (
-    <header className="nav">
-      <div className="nav-inner">
-        <Link to="/" className="brand">
-          <span className="logo">O</span>
-          <span>Orderly</span>
-        </Link>
-
-        <nav className="nav-links">
-          <NavLink to="/" end>
-            Products
-          </NavLink>
-          <NavLink to="/cart">
-            Cart
-            {count > 0 && <span className="count">{count}</span>}
-          </NavLink>
-          <NavLink to="/orders">{user.role === 'ADMIN' ? 'All orders' : 'My orders'}</NavLink>
-        </nav>
-
-        <div className="nav-right">
-          <div className="user-chip">
-            <span className="avatar">{user.name.charAt(0).toUpperCase()}</span>
-            <span className="user-meta">
-              {user.name}
-              <small>{user.role}</small>
-            </span>
-          </div>
-          <ThemeToggle />
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => {
-              logout();
-              navigate('/login');
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </div>
-    </header>
-  );
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
 }
 
 export default function App() {
-  const { user } = useAuth();
-
   return (
-    <>
+    <div className="app">
+      <ScrollToTop />
       <NavBar />
-      {!user && (
-        <div className="floating-toggle">
-          <ThemeToggle />
-        </div>
-      )}
       <main className="container">
         <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/shop" element={<ShopPage />} />
+          <Route path="/product/:id" element={<ProductDetailPage />} />
+          <Route path="/cart" element={<CartPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<RequireAuth><ProductsPage /></RequireAuth>} />
-          <Route path="/cart" element={<RequireAuth><CartPage /></RequireAuth>} />
-          <Route path="/orders" element={<RequireAuth><OrdersPage /></RequireAuth>} />
+          <Route path="/orders" element={<RequireAuth><OrdersPage scope="mine" /></RequireAuth>} />
+          <Route path="/admin" element={<Navigate to="/admin/products" replace />} />
+          <Route path="/admin/products" element={<RequireAdmin><AdminProductsPage /></RequireAdmin>} />
+          <Route path="/admin/orders" element={<RequireAdmin><OrdersPage scope="all" /></RequireAdmin>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-    </>
+      <Footer />
+    </div>
   );
 }
